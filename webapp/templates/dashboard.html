@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reflex Guard</title>
+<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+<div id="dangerFlash" class="danger-flash">
+  <div class="danger-flash-inner">
+    <div class="danger-flash-icon">⚠</div>
+    <div class="danger-flash-title">DANGER ZONE INTRUSION</div>
+    <div class="danger-flash-sub">Relay tripped in <span id="dangerFlashMs">—</span></div>
+  </div>
+</div>
+
+<header>
+  <div class="brand">
+    <h1>REFLEX GUARD</h1>
+    <span class="subtitle">AI Safety Interlock for Power Tools</span>
+    <span class="badge">Qualcomm AI Hub · QRB2210 + STM32U585</span>
+  </div>
+
+  <div class="datasource">
+    <span class="ds-label">DATA SOURCE</span>
+    <button class="ds-btn active" id="dsSimBtn" data-mode="simulation">● SIMULATION</button>
+    <button class="ds-btn" id="dsPcBtn" data-mode="pc">◐ PC + UNO Q</button>
+    <button class="ds-btn" id="dsLiveBtn" data-mode="live">○ LIVE HARDWARE</button>
+    <span id="dsStatus" class="ds-status">No physical hardware connected</span>
+    <span id="socketDot" class="socket-dot"></span>
+  </div>
+</header>
+
+<nav class="tabs">
+  <button class="tab-btn active" data-tab="overview">Overview</button>
+  <button class="tab-btn" data-tab="camera">Live Camera</button>
+  <button class="tab-btn" data-tab="twin">Digital Twin</button>
+  <button class="tab-btn" data-tab="control">Simulation Control</button>
+  <button class="tab-btn" data-tab="telemetry">Telemetry</button>
+  <button class="tab-btn" data-tab="events">Event Log</button>
+  <button class="tab-btn" data-tab="hardware">Hardware</button>
+  <button class="tab-btn" data-tab="syslog">System Log</button>
+  <button class="tab-btn" data-tab="demo">Live Demonstration</button>
+</nav>
+
+<main>
+
+  <!-- OVERVIEW -->
+  <section class="tab-panel active" id="tab-overview">
+    <div class="ai-model-card">
+      <div class="ai-model-id">
+        <span class="name" id="aiModelName">MediaPipe-Hand-Detection</span>
+        <span class="source" id="aiModelSource">Qualcomm AI Hub</span>
+        <div class="tag-row">
+          <span class="tag" id="aiModelQuant">INT8</span>
+          <span class="tag npu" id="aiModelBackend">QNN · Hexagon NPU</span>
+          <span class="tag sim" id="aiModelReal">SIMULATED TELEMETRY</span>
+        </div>
+      </div>
+      <div class="npu-gauge-wrap">
+        <div class="npu-gauge">
+          <svg viewBox="0 0 80 80">
+            <circle class="track" cx="40" cy="40" r="33"></circle>
+            <circle class="fill" id="npuGaugeFill" cx="40" cy="40" r="33"
+                    stroke-dasharray="0 207"></circle>
+          </svg>
+          <span class="pct" id="npuGaugePct">—</span>
+        </div>
+        <span class="npu-gauge-label">NPU utilization<br><b id="npuLatencyVal">— ms</b> inference</span>
+      </div>
+    </div>
+
+    <div class="card-grid" id="overviewCards">
+      <div class="stat-card" data-card="system"><span class="label">System</span><span class="value">—</span></div>
+      <div class="stat-card" data-card="ai"><span class="label">AI Vision</span><span class="value">—</span></div>
+      <div class="stat-card" data-card="safety"><span class="label">Safety Core (STM32U585)</span><span class="value">—</span></div>
+      <div class="stat-card" data-card="tool"><span class="label">Tool Power</span><span class="value">—</span></div>
+      <div class="stat-card" data-card="relay"><span class="label">Relay</span><span class="value">—</span></div>
+      <div class="stat-card" data-card="camera"><span class="label">Camera</span><span class="value">OFFLINE</span></div>
+    </div>
+
+    <div class="state-machine">
+      <h3>Safety State Machine</h3>
+      <div class="sm-flow" id="smFlow">
+        <span class="sm-step" data-state="SAFE">SAFE</span>
+        <span class="sm-arrow">→</span>
+        <span class="sm-step" data-state="HAND_DETECTED">HAND DETECTED</span>
+        <span class="sm-arrow">→</span>
+        <span class="sm-step" data-state="DANGER">DANGER ZONE INTRUSION</span>
+        <span class="sm-arrow">→</span>
+        <span class="sm-step" data-state="SAFETY_EVENT">SAFETY EVENT</span>
+        <span class="sm-arrow">→</span>
+        <span class="sm-step" data-state="TRIPPED">STM32 ACTION</span>
+        <span class="sm-arrow">→</span>
+        <span class="sm-step" data-state="RELAY_OPEN">RELAY OPEN</span>
+        <span class="sm-arrow">→</span>
+        <span class="sm-step" data-state="FAULT">POWER CUT</span>
+      </div>
+    </div>
+
+    <div class="uptime-row">
+      <span class="label">System uptime</span>
+      <span class="value" id="uptimeVal">0s</span>
+    </div>
+  </section>
+
+  <!-- LIVE CAMERA -->
+  <section class="tab-panel" id="tab-camera">
+    <div id="pcCameraPanel" style="display:none;">
+      <p class="note">Server-side feed: real webcam frames on this machine, run through the real
+        <b>AIHubHandDetector</b> (Qualcomm AI Hub model), streamed here as MJPEG — not the browser's
+        camera. Use the <b>PC + UNO Q</b> data source's Simulation Control tab buttons to start/stop it.</p>
+      <div class="camera-stage">
+        <img id="pcCameraImg" src="" alt="PC live camera feed" style="width:100%;height:100%;object-fit:cover;">
+      </div>
+    </div>
+    <div id="browserCameraPanel">
+    <div class="camera-toolbar">
+      <button id="enableCamBtn">Enable Camera</button>
+      <button id="stopCamBtn" disabled>Stop Camera</button>
+      <button id="restartCamBtn" disabled>Restart Camera</button>
+      <button id="fullscreenBtn" disabled>Fullscreen</button>
+      <select id="cameraSelect" disabled></select>
+      <span class="camera-data-tag">CAMERA DATA: LOCAL</span>
+    </div>
+
+    <div class="camera-stage" id="cameraStage">
+      <video id="camVideo" autoplay playsinline muted></video>
+      <canvas id="overlayCanvas"></canvas>
+      <div class="camera-hud" id="cameraHud">
+        <div>CAMERA <span id="camConnDot" class="hud-dot off"></span> <span id="camConnLabel">OFFLINE</span></div>
+        <div id="camRes">— × —</div>
+        <div id="camFps">— FPS</div>
+      </div>
+      <div class="camera-error" id="cameraError" style="display:none;"></div>
+    </div>
+
+    <div class="danger-zone-controls">
+      <button id="editZoneBtn" disabled>Edit Danger Zone</button>
+      <span class="hint">When editing: click and drag on the video to draw the danger zone rectangle.</span>
+    </div>
+    </div>
+  </section>
+
+  <!-- DIGITAL TWIN -->
+  <section class="tab-panel" id="tab-twin">
+    <div class="section-heading">
+      <h2>Digital Twin</h2>
+      <span class="hint">Predicted from the component latency budget, compared live against measured response time</span>
+    </div>
+
+    <div class="twin-layout">
+      <div class="twin-stage">
+        <svg viewBox="0 0 600 250" xmlns="http://www.w3.org/2000/svg">
+          <!-- workbench -->
+          <rect x="20" y="195" width="560" height="14" rx="3" fill="#1e2225" stroke="#2a2f31"/>
+          <!-- camera + FOV cone -->
+          <rect x="60" y="30" width="34" height="22" rx="4" fill="#202426" stroke="#3dd6c6" stroke-width="1.5"/>
+          <circle cx="77" cy="41" r="6" fill="#0c0e0f" stroke="#3dd6c6"/>
+          <circle id="twinNpuDot" cx="77" cy="41" r="3" fill="#3dd6c6"/>
+          <text x="77" y="22" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#8b9498">CAMERA + NPU</text>
+          <polygon points="77,52 40,170 150,170" fill="#3dd6c6" opacity="0.06"/>
+          <line x1="77" y1="52" x2="40" y2="170" stroke="#3dd6c6" stroke-width="1" stroke-dasharray="3 3" opacity="0.4"/>
+          <line x1="77" y1="52" x2="150" y2="170" stroke="#3dd6c6" stroke-width="1" stroke-dasharray="3 3" opacity="0.4"/>
+
+          <!-- danger zone / blade -->
+          <rect id="twinDangerZone" x="55" y="170" width="110" height="25" rx="3" fill="#3a1512" stroke="#ff4433" stroke-width="1.5"/>
+          <text x="110" y="187" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#ff8a7a">BLADE ZONE</text>
+
+          <!-- hand -->
+          <g id="twinHand" transform="translate(330,178)">
+            <circle r="11" fill="#eef1f0" opacity="0.9"/>
+            <text x="0" y="4" text-anchor="middle" font-size="12">✋</text>
+          </g>
+
+          <!-- signal path: NPU -> bridge -> STM32 -->
+          <line x1="94" y1="41" x2="330" y2="41" stroke="#2a2f31" stroke-width="2"/>
+          <line id="twinSignalLine" x1="94" y1="41" x2="94" y2="41" stroke="#3dd6c6" stroke-width="2"/>
+          <circle id="twinSignalPulse" class="twin-signal-pulse" r="4.5" style="fill:#3dd6c6;filter:drop-shadow(0 0 4px #3dd6c6);offset-path:path('M 94 41 L 540 41')"/>
+          <circle id="twinSpark" class="twin-spark" cx="457" cy="41" r="14" style="fill:#ff4433;filter:drop-shadow(0 0 8px #ff4433)"/>
+          <text x="212" y="33" text-anchor="middle" font-family="IBM Plex Mono" font-size="8.5" fill="#5f696d">LINUX ↔ MCU BRIDGE</text>
+
+          <!-- STM32 -->
+          <rect x="330" y="26" width="60" height="30" rx="4" fill="#202426" stroke="#8b9498" stroke-width="1.5"/>
+          <text x="360" y="45" text-anchor="middle" font-family="IBM Plex Mono" font-size="9.5" fill="#eef1f0">STM32</text>
+          <text x="360" y="18" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#8b9498">SAFETY CORE</text>
+
+          <!-- relay -->
+          <g id="twinRelay" transform="translate(440,41)">
+            <circle cx="0" cy="0" r="4" fill="#8b9498"/>
+            <circle cx="34" cy="0" r="4" fill="#8b9498"/>
+            <line id="twinRelayArm" x1="0" y1="0" x2="34" y2="0" stroke="#2fbf6b" stroke-width="3"/>
+            <text x="17" y="-12" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#8b9498">RELAY</text>
+          </g>
+          <line x1="390" y1="41" x2="436" y2="41" stroke="#2a2f31" stroke-width="2"/>
+          <line x1="478" y1="41" x2="520" y2="41" stroke="#2a2f31" stroke-width="2"/>
+
+          <!-- tool motor -->
+          <g id="twinMotor" transform="translate(540,41)">
+            <circle r="18" fill="#202426" stroke="#8b9498" stroke-width="1.5"/>
+            <g id="twinMotorSpin">
+              <line x1="-10" y1="0" x2="10" y2="0" stroke="#eef1f0" stroke-width="2"/>
+              <line x1="0" y1="-10" x2="0" y2="10" stroke="#eef1f0" stroke-width="2"/>
+            </g>
+          </g>
+          <text x="540" y="75" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#8b9498">TOOL MOTOR</text>
+        </svg>
+        <p class="twin-caption">Mirrors live telemetry (or the simulator) — hand position, signal path, relay and motor state. Not a recorded animation.</p>
+      </div>
+
+      <div class="twin-metrics">
+        <div class="twin-metric-card">
+          <div class="row"><span class="k">Twin health</span><span class="v"><span class="health-pill NOMINAL" id="twinHealthPill"><span class="dot"></span><span id="twinHealthText">NO DATA</span></span></span></div>
+          <div class="row"><span class="k">Time to danger (predicted)</span><span class="v" id="twinTtd">—</span></div>
+          <div class="row"><span class="k">Hand distance</span><span class="v" id="twinDist">—</span></div>
+        </div>
+
+        <div class="twin-metric-card">
+          <div class="row"><span class="k">Predicted response</span><span class="v" id="twinPredicted">—</span></div>
+          <div class="row"><span class="k">Predicted (worst-case)</span><span class="v" id="twinPredictedWorst">—</span></div>
+          <div class="row"><span class="k">Actual measured</span><span class="v" id="twinActual">—</span></div>
+          <div class="row"><span class="k">Drift</span><span class="v" id="twinDrift">—</span></div>
+        </div>
+
+        <div class="twin-metric-card">
+          <div class="row"><span class="k">Latency budget by stage</span><span class="v"></span></div>
+          <div class="twin-budget-list" id="twinBudgetList"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SIMULATION CONTROL -->
+  <section class="tab-panel" id="tab-control">
+    <div class="control-groups">
+      <div class="control-group">
+        <h3>System</h3>
+        <button data-cmd='{"action":"start_system"}'>Start System</button>
+        <button data-cmd='{"action":"stop_system"}'>Stop System</button>
+        <button data-cmd='{"action":"restart_system"}'>Restart System</button>
+      </div>
+      <div class="control-group">
+        <h3>Hand</h3>
+        <button data-cmd='{"action":"set_hand","value":"none"}'>No Hand</button>
+        <button data-cmd='{"action":"set_hand","value":"detected"}'>Hand Detected</button>
+        <button class="danger" data-cmd='{"action":"set_hand","value":"enter_danger"}'>Move Hand Into Danger Zone</button>
+        <button data-cmd='{"action":"set_hand","value":"exit_danger"}'>Move Hand Out Of Danger Zone</button>
+      </div>
+      <div class="control-group">
+        <h3>Tool</h3>
+        <button data-cmd='{"action":"set_tool","value":"on"}'>Tool ON</button>
+        <button data-cmd='{"action":"set_tool","value":"off"}'>Tool OFF</button>
+      </div>
+      <div class="control-group">
+        <h3>Safety</h3>
+        <button data-cmd='{"action":"trigger_safety_event"}'>Trigger Safety Event</button>
+        <button data-cmd='{"action":"clear_safety_event"}'>Clear Safety Event</button>
+        <button class="danger" data-cmd='{"action":"emergency_stop"}'>Emergency Stop</button>
+        <button data-cmd='{"action":"reset_safety"}'>Reset Safety System</button>
+      </div>
+      <div class="control-group">
+        <h3>Fault Injection</h3>
+        <button data-cmd='{"action":"inject_fault","target":"ai"}'>AI Disconnected</button>
+        <button data-cmd='{"action":"inject_fault","target":"stm32"}'>STM32 Disconnected</button>
+        <button data-cmd='{"action":"inject_fault","target":"relay"}'>Relay Fault</button>
+        <button data-cmd='{"action":"inject_fault","target":"comm"}'>Comm Timeout</button>
+        <hr>
+        <button data-cmd='{"action":"clear_fault","target":"ai"}'>Clear AI Fault</button>
+        <button data-cmd='{"action":"clear_fault","target":"stm32"}'>Clear STM32 Fault</button>
+        <button data-cmd='{"action":"clear_fault","target":"relay"}'>Clear Relay Fault</button>
+        <button data-cmd='{"action":"clear_fault","target":"comm"}'>Clear Comm Fault</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- TELEMETRY -->
+  <section class="tab-panel" id="tab-telemetry">
+    <div class="chart-grid">
+      <div class="chart-box"><h3>AI Latency (ms)</h3><canvas id="chartLatency"></canvas></div>
+      <div class="chart-box"><h3>Camera FPS (real, measured)</h3><canvas id="chartFps"></canvas></div>
+      <div class="chart-box"><h3>Detection Confidence (%)</h3><canvas id="chartConfidence"></canvas></div>
+      <div class="chart-box"><h3>Safety Response Time (ms)</h3><canvas id="chartResponse"></canvas></div>
+    </div>
+    <div class="heartbeat-row">
+      <span class="label">System heartbeat</span>
+      <span class="hud-dot" id="heartbeatDot"></span>
+      <span id="heartbeatVal">—</span>
+    </div>
+  </section>
+
+  <!-- EVENT LOG -->
+  <section class="tab-panel" id="tab-events">
+    <div class="events-toolbar">
+      <button id="clearLogBtn">Clear Log</button>
+      <button id="exportLogBtn">Export Log (CSV)</button>
+    </div>
+    <table class="events-table">
+      <thead><tr><th>Time</th><th>Event</th><th>Source</th><th>Confidence</th><th>Action</th><th>Response</th><th>Status</th></tr></thead>
+      <tbody id="eventsBody"></tbody>
+    </table>
+  </section>
+
+  <!-- HARDWARE -->
+  <section class="tab-panel" id="tab-hardware">
+    <div class="card-grid" id="hardwareCards">
+      <div class="stat-card" data-card="camera"><span class="label">Camera</span><span class="value">OFFLINE</span></div>
+      <div class="stat-card" data-card="unoq"><span class="label">Arduino UNO Q</span><span class="value">SIMULATION</span></div>
+      <div class="stat-card" data-card="qnn"><span class="label">QNN Model</span><span class="value">SIMULATION</span></div>
+      <div class="stat-card" data-card="stm32hw"><span class="label">STM32U585</span><span class="value">SIMULATION</span></div>
+      <div class="stat-card" data-card="relayhw"><span class="label">Safety Relay</span><span class="value">—</span></div>
+      <div class="stat-card" data-card="estop"><span class="label">Emergency Stop</span><span class="value">READY</span></div>
+    </div>
+    <p class="note">This project is not yet running on physical Arduino UNO Q / STM32U585 hardware. All "AI Vision" and "Safety Core" values above come from the on-server simulation engine, clearly separate from the real, local browser camera feed.</p>
+  </section>
+
+  <!-- SYSTEM LOG -->
+  <section class="tab-panel" id="tab-syslog">
+    <div class="terminal" id="terminalLog"></div>
+  </section>
+
+  <!-- DEMO -->
+  <section class="tab-panel" id="tab-demo">
+    <div class="demo-steps">
+      <div class="demo-step" id="demoStep1">
+        <h3>Step 1 — Normal Operation</h3>
+        <p>Tool ON, system SAFE.</p>
+        <button data-cmd='{"action":"start_system"}'>Start Normal Operation</button>
+      </div>
+      <div class="demo-step" id="demoStep2">
+        <h3>Step 2 — Hand Enters Danger Zone</h3>
+        <p>Enable your real camera on the Live Camera tab, then trigger the event below.</p>
+        <button class="danger" data-cmd='{"action":"trigger_safety_event"}'>Hand Enters Danger Zone</button>
+      </div>
+      <div class="demo-step" id="demoStep3">
+        <h3>Step 3 — Safety Response</h3>
+        <div class="sm-flow small">
+          <span class="sm-step" data-state="HAND_DETECTED">HAND DETECTED</span><span class="sm-arrow">→</span>
+          <span class="sm-step" data-state="DANGER">DANGER DETECTED</span><span class="sm-arrow">→</span>
+          <span class="sm-step" data-state="SAFETY_EVENT">SAFETY EVENT</span><span class="sm-arrow">→</span>
+          <span class="sm-step" data-state="TRIPPED">STM32</span><span class="sm-arrow">→</span>
+          <span class="sm-step" data-state="RELAY_OPEN">RELAY OPEN</span><span class="sm-arrow">→</span>
+          <span class="sm-step" data-state="FAULT">POWER OFF</span>
+        </div>
+        <p>Measured response time: <span id="demoResponseTime">—</span></p>
+      </div>
+      <button id="demoResetBtn" data-cmd='{"action":"reset_safety"}'>Reset System</button>
+    </div>
+  </section>
+
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+<script src="/static/js/app.js"></script>
+</body>
+</html>

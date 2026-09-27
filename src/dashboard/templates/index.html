@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reflex Guard Dashboard</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <span class="dot-live" id="connDot"></span>
+      <h1>Reflex Guard</h1>
+    </div>
+    <span class="mode-tag">{{ mode }} mode</span>
+  </header>
+
+  <main>
+    <section class="feed-panel">
+      <div class="feed-wrap">
+        <img src="{{ url_for('video_feed') }}" alt="live feed">
+        <div class="feed-caption">Danger zone is outlined live on the feed</div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div id="stateBox" class="state-box state-SAFE">
+        <span id="stateLabel">SAFE</span>
+      </div>
+
+      <div class="stats">
+        <div class="stat-card">
+          <span class="label">Trip count</span>
+          <span id="tripCount" class="value">0</span>
+        </div>
+        <div class="stat-card">
+          <span class="label">Last cutoff latency</span>
+          <span id="latency" class="value">—</span>
+        </div>
+      </div>
+
+      <button id="resetBtn">Reset system</button>
+
+      <h3>Event log</h3>
+      <ul id="eventLog" class="event-log"></ul>
+    </section>
+  </main>
+
+<script>
+async function poll() {
+  try {
+    const res = await fetch('/api/status');
+    const data = await res.json();
+    document.getElementById('connDot').classList.remove('dot-off');
+
+    const box = document.getElementById('stateBox');
+    box.className = 'state-box state-' + data.state;
+    document.getElementById('stateLabel').textContent = data.state;
+
+    document.getElementById('tripCount').textContent = data.trip_count;
+    document.getElementById('latency').textContent = data.last_latency_ms !== null ? data.last_latency_ms + ' ms' : '—';
+
+    const log = document.getElementById('eventLog');
+    log.innerHTML = '';
+    data.events.slice().reverse().forEach(ev => {
+      const li = document.createElement('li');
+      li.textContent = `${ev.t} — ${ev.message}`;
+      log.appendChild(li);
+    });
+  } catch (e) {
+    document.getElementById('connDot').classList.add('dot-off');
+  }
+  setTimeout(poll, 400);
+}
+
+document.getElementById('resetBtn').addEventListener('click', () => {
+  fetch('/api/reset', { method: 'POST' });
+});
+
+poll();
+</script>
+</body>
+</html>

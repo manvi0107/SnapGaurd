@@ -1,0 +1,19 @@
+flask==3.0.3
+opencv-python==4.10.0.84
+numpy==1.26.4
+# Optional, only needed if you enable GPIO relay control on a real Pi:
+# RPi.GPIO==0.7.1
+
+# --- Qualcomm AI Hub model (src/vision/qai_hub_model.py) ---------------------
+# Dev-machine / Raspberry Pi CPU inference (config.AI_BACKEND = "cpu"/"auto"):
+onnxruntime==1.19.2
+# On-device NPU inference on the QRB2210 (config.AI_BACKEND = "npu"): install
+# Qualcomm's onnxruntime-qnn wheel for your target instead of plain
+# onnxruntime, and make sure the QAIRT SDK's libQnnHtp.so is on the device.
+# Not pip-installable generically -- see Qualcomm's QAIRT/Dragonwing docs.
+
+# --- Exporting/compiling the model yourself (scripts/export_qai_hub_model.py)
+# Needs a free account at https://aihub.qualcomm.com -- not required just to
+# run the app with an already-exported model:
+# qai-hub==0.31.0
+# qai-hub-models[mediapipe-hand]==0.31.0
