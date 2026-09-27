@@ -2,12 +2,3 @@ flask==3.0.3
 flask-socketio==5.6.1
 python-socketio==5.17.0
 simple-websocket==1.0.0
-
-# --- PC LIVE mode only (Snapdragon PC + Arduino UNO Q over USB serial) ------
-# Optional: without these, the server still runs fine with just
-# simulation + live-hardware-placeholder modes, and prints a note that
-# PC LIVE is unavailable.
-opencv-python==4.10.0.84
-numpy==1.26.4
-onnxruntime==1.19.2
-pyserial==3.5
